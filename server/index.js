@@ -10,9 +10,22 @@ import interviewRouter from "./routes/interview.route.js"
 import paymentRouter from "./routes/payment.route.js"
 
 const app = express()
+const allowedOrigins = [
+    "https://intervo-ai-l5zd.onrender.com",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:5174"
+];
+
 app.use(cors({
-    origin:"https://intervo-ai-l5zd.onrender.com",
-    credentials:true
+    origin: function (origin, callback) {
+        if (!origin || allowedOrigins.includes(origin) || origin.startsWith("http://localhost:")) {
+            callback(null, true);
+        } else {
+            callback(null, true);
+        }
+    },
+    credentials: true
 }))
 
 app.use(express.json())
