@@ -24,12 +24,12 @@ function Step1SetUp({ onStart }) {
     const [skills, setSkills] = useState([]);
     const [resumeText, setResumeText] = useState("");
     const [analysisDone, setAnalysisDone] = useState(false);
-    const [analyzing, setAnalyzing] = useState(false);
-
+    const [errorMsg, setErrorMsg] = useState("");
 
     const handleUploadResume = async () => {
         if (!resumeFile || analyzing) return;
         setAnalyzing(true)
+        setErrorMsg("")
 
         const formdata = new FormData()
         formdata.append("resume", resumeFile)
@@ -39,8 +39,8 @@ function Step1SetUp({ onStart }) {
 
             console.log(result.data)
 
-            setRole(result.data.role || "");
-            setExperience(result.data.experience || "");
+            setRole(result.data.role || role || "Software Developer");
+            setExperience(result.data.experience || experience || "1-3 years");
             setProjects(result.data.projects || []);
             setSkills(result.data.skills || []);
             setResumeText(result.data.resumeText || "");
@@ -49,24 +49,36 @@ function Step1SetUp({ onStart }) {
             setAnalyzing(false);
 
         } catch (error) {
-            console.log(error)
+            console.error(error)
+            setErrorMsg(error.response?.data?.message || "Failed to analyze resume. You can still enter details manually.")
             setAnalyzing(false);
         }
     }
 
     const handleStart = async () => {
         setLoading(true)
+        setErrorMsg("")
         try {
-           const result = await axios.post(ServerUrl + "/api/interview/generate-questions" , {role, experience, mode , resumeText, projects, skills } , {withCredentials:true}) 
+           const targetRole = role.trim() || "Software Developer";
+           const targetExp = experience.trim() || "1-3 years";
+           const result = await axios.post(ServerUrl + "/api/interview/generate-questions" , {
+               role: targetRole, 
+               experience: targetExp, 
+               mode , 
+               resumeText, 
+               projects, 
+               skills 
+           } , {withCredentials:true}) 
            console.log(result.data)
-           if(userData){
+           if(userData && result.data.creditsLeft !== undefined){
             dispatch(setUserData({...userData , credits:result.data.creditsLeft}))
            }
            setLoading(false)
            onStart(result.data)
 
         } catch (error) {
-            console.log(error)
+            console.error(error)
+            setErrorMsg(error.response?.data?.message || "Failed to start interview. Please check your credentials or network connection.")
             setLoading(false)
         }
     }
@@ -144,11 +156,17 @@ function Step1SetUp({ onStart }) {
 
                     <div className='space-y-6'>
 
+                        {errorMsg && (
+                            <div className='p-4 bg-red-950/80 border border-red-700 rounded-xl text-red-200 text-sm'>
+                                {errorMsg}
+                            </div>
+                        )}
+
                         <div className='relative'>
                             <FaUserTie className='absolute top-4 left-4 text-slate-400' />
 
-                            <input type='text' placeholder='Enter role'
-                                className='w-full pl-12 pr-4 py-3 border border-slate-700 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition'
+                            <input type='text' placeholder='Enter role (e.g. Software Developer)'
+                                className='w-full pl-12 pr-4 py-3 border border-slate-700 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition text-slate-100'
                                 onChange={(e) => setRole(e.target.value)} value={role} />
                         </div>
 
@@ -157,16 +175,14 @@ function Step1SetUp({ onStart }) {
                             <FaBriefcase className='absolute top-4 left-4 text-slate-400' />
 
                             <input type='text' placeholder='Experience (e.g. 2 years)'
-                                className='w-full pl-12 pr-4 py-3 border border-slate-700 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition'
+                                className='w-full pl-12 pr-4 py-3 border border-slate-700 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition text-slate-100'
                                 onChange={(e) => setExperience(e.target.value)} value={experience} />
-
-
 
                         </div>
 
                         <select value={mode}
                             onChange={(e) => setMode(e.target.value)}
-                            className='w-full py-3 px-4 border border-slate-700 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition'>
+                            className='w-full py-3 px-4 border border-slate-700 rounded-xl focus:ring-2 focus:ring-pink-500 outline-none transition text-slate-100 bg-slate-900'>
 
                             <option value="Technical">Technical Interview</option>
                             <option value="HR">HR Interview</option>
@@ -201,8 +217,6 @@ function Step1SetUp({ onStart }) {
 
                                         className='mt-4 bg-slate-800 text-white px-5 py-2 rounded-lg hover:bg-slate-700 transition'>
                                         {analyzing ? "Analyzing..." : "Analyze Resume"}
-
-
 
                                     </motion.button>)}
 
@@ -250,14 +264,12 @@ function Step1SetUp({ onStart }) {
 
 
                         <motion.button
-                        onClick={handleStart}
-                            disabled={!role || !experience || loading}
+                            onClick={handleStart}
+                            disabled={loading}
                             whileHover={{ scale: 1.03 }}
                             whileTap={{ scale: 0.95 }}
                             className='w-full disabled:bg-slate-700 bg-pink-500 hover:bg-pink-600 text-white py-3 rounded-full text-lg font-semibold transition duration-300 shadow-md'>
-                            {loading ? "Staring...":"Start Interview"}
-
-
+                            {loading ? "Starting..." : "Start Interview"}
                         </motion.button>
                     </div>
 
