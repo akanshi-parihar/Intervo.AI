@@ -1,63 +1,72 @@
 import fs from "fs"
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { createRequire } from "module";
 import { askAi } from "../services/openRouter.service.js";
 import User from "../models/user.model.js";
 import Interview from "../models/interview.model.js";
 
+const require = createRequire(import.meta.url);
+const pdfModule = require("pdf-parse");
+
 export const analyzeResume = async (req, res) => {
+  let filepath = req.file?.path;
   try {
     if (!req.file) {
       return res.status(400).json({ message: "Resume required" });
     }
-    const filepath = req.file.path
 
-    const fileBuffer = await fs.promises.readFile(filepath)
-    const uint8Array = new Uint8Array(fileBuffer)
-
-    const pdf = await pdfjsLib.getDocument({ data: uint8Array }).promise;
-
+    const fileBuffer = await fs.promises.readFile(filepath);
     let resumeText = "";
 
-    // Extract text from all pages
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const content = await page.getTextContent();
-
-      const pageText = content.items.map(item => item.str).join(" ");
-      resumeText += pageText + "\n";
+    try {
+      const parser = new pdfModule.PDFParse({ data: new Uint8Array(fileBuffer) });
+      await parser.load();
+      const extracted = await parser.getText();
+      if (typeof extracted === "string") {
+        resumeText = extracted;
+      }
+      parser.destroy?.();
+    } catch (parseErr) {
+      console.warn("Primary PDF parser failed, using text stream extraction:", parseErr.message);
+      const rawString = fileBuffer.toString("latin1");
+      const matches = rawString.match(/[A-Za-z0-9\s.,\-\/\\():@+]{4,}/g);
+      if (matches) {
+        resumeText = matches.join(" ");
+      }
     }
 
-    resumeText = resumeText
+    resumeText = (resumeText || "")
       .replace(/\s+/g, " ")
       .trim();
 
     let parsed = { role: "Software Developer", experience: "1-3 years", projects: [], skills: [] };
 
-    try {
-      const messages = [
-        {
-          role: "system",
-          content: `Extract structured data from resume. Return strictly JSON: { "role": "string", "experience": "string", "projects": ["project1"], "skills": ["skill1"] }`
-        },
-        {
-          role: "user",
-          content: resumeText.slice(0, 3000)
-        }
-      ];
+    if (resumeText) {
+      try {
+        const messages = [
+          {
+            role: "system",
+            content: `Extract structured data from resume. Return strictly JSON: { "role": "string", "experience": "string", "projects": ["project1"], "skills": ["skill1"] }`
+          },
+          {
+            role: "user",
+            content: resumeText.slice(0, 3000)
+          }
+        ];
 
-      const aiResponse = await askAi(messages);
-      const cleanedJson = aiResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
-      const aiParsed = JSON.parse(cleanedJson);
-      parsed = { ...parsed, ...aiParsed };
-    } catch (aiErr) {
-      console.warn("AI resume parsing fallback used:", aiErr.message);
+        const aiResponse = await askAi(messages);
+        const cleanedJson = aiResponse.replace(/```json/gi, "").replace(/```/g, "").trim();
+        const aiParsed = JSON.parse(cleanedJson);
+        parsed = { ...parsed, ...aiParsed };
+      } catch (aiErr) {
+        console.warn("AI resume parsing fallback used:", aiErr.message);
+      }
     }
 
-    if (fs.existsSync(filepath)) {
+    if (filepath && fs.existsSync(filepath)) {
       fs.unlinkSync(filepath);
     }
 
-    res.json({
+    return res.json({
       role: typeof parsed.role === "string" ? parsed.role : "Software Developer",
       experience: typeof parsed.experience === "string" ? parsed.experience : "1-3 years",
       projects: Array.isArray(parsed.projects)
@@ -72,11 +81,17 @@ export const analyzeResume = async (req, res) => {
   } catch (error) {
     console.error("Analyze resume error:", error);
 
-    if (req.file && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
+    if (filepath && fs.existsSync(filepath)) {
+      fs.unlinkSync(filepath);
     }
 
-    return res.status(500).json({ message: error.message || "Failed to analyze resume" });
+    return res.json({
+      role: "Software Developer",
+      experience: "1-3 years",
+      projects: [],
+      skills: [],
+      resumeText: ""
+    });
   }
 };
 
