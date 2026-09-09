@@ -23,6 +23,7 @@ function Step1SetUp({ onStart }) {
     const [loading, setLoading] = useState(false);
     const [projects, setProjects] = useState([]);
     const [skills, setSkills] = useState([]);
+    const [internships, setInternships] = useState([]);
     const [resumeText, setResumeText] = useState("");
     const [analysisDone, setAnalysisDone] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
@@ -49,12 +50,16 @@ function Step1SetUp({ onStart }) {
             const fetchedSkills = Array.isArray(result.data.skills)
                 ? result.data.skills.map(s => typeof s === 'object' && s !== null ? (s.name || s.skill || JSON.stringify(s)) : String(s))
                 : [];
+            const fetchedInternships = Array.isArray(result.data.internships)
+                ? result.data.internships.map(i => typeof i === 'object' && i !== null ? (i.title || i.role || i.company || JSON.stringify(i)) : String(i))
+                : [];
             const fetchedResumeText = result.data.resumeText || "";
 
             setRole(fetchedRole);
             setExperience(fetchedExp);
             setProjects(fetchedProjects);
             setSkills(fetchedSkills);
+            setInternships(fetchedInternships);
             setResumeText(fetchedResumeText);
             setAnalysisDone(true);
             setAnalyzing(false);
@@ -64,6 +69,7 @@ function Step1SetUp({ onStart }) {
                 experience: fetchedExp,
                 projects: fetchedProjects,
                 skills: fetchedSkills,
+                internships: fetchedInternships,
                 resumeText: fetchedResumeText
             };
 
@@ -269,15 +275,28 @@ function Step1SetUp({ onStart }) {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 className='bg-slate-900 border border-slate-700 rounded-xl p-5 space-y-4'>
-                                <h3 className='text-lg font-semibold text-slate-100'>
+                                <h3 className='text-lg font-semibold text-slate-100 border-b border-slate-700/60 pb-2'>
                                     Resume Analysis Result</h3>
+
+                                {skills.length > 0 && (
+                                     <div>
+                                         <p className='font-medium text-slate-200 mb-2 text-sm'>
+                                             Skills:</p>
+
+                                         <div className='flex flex-wrap gap-2'>
+                                             {skills.map((s, i) => (
+                                                 <span key={i} className='bg-pink-950 text-pink-300 px-3 py-1 rounded-full text-xs font-medium border border-pink-700/50'>{typeof s === 'object' && s !== null ? (s.name || s.skill || JSON.stringify(s)) : String(s)}</span>
+                                             ))}
+                                         </div>
+                                     </div>
+                                 )}
 
                                 {projects.length > 0 && (
                                      <div>
-                                         <p className='font-medium text-slate-200 mb-1'>
+                                         <p className='font-medium text-slate-200 mb-1 text-sm'>
                                              Projects:</p>
 
-                                         <ul className='list-disc list-inside text-slate-300 space-y-1'>
+                                         <ul className='list-disc list-inside text-slate-300 space-y-1 text-sm'>
                                              {projects.map((p, i) => (
                                                  <li key={i}>{typeof p === 'object' && p !== null ? (p.name || p.title || JSON.stringify(p)) : String(p)}</li>
                                              ))}
@@ -285,16 +304,16 @@ function Step1SetUp({ onStart }) {
                                      </div>
                                  )}
 
-                                 {skills.length > 0 && (
+                                {internships.length > 0 && (
                                      <div>
-                                         <p className='font-medium text-slate-200 mb-1'>
-                                             Skills:</p>
+                                         <p className='font-medium text-slate-200 mb-1 text-sm'>
+                                             Internships & Experience:</p>
 
-                                         <div className='flex flex-wrap gap-2'>
-                                             {skills.map((s, i) => (
-                                                 <span key={i} className='bg-pink-950 text-pink-300 px-3 py-1 rounded-full text-sm'>{typeof s === 'object' && s !== null ? (s.name || s.skill || JSON.stringify(s)) : String(s)}</span>
+                                         <ul className='list-disc list-inside text-slate-300 space-y-1 text-sm'>
+                                             {internships.map((item, i) => (
+                                                 <li key={i}>{typeof item === 'object' && item !== null ? (item.title || item.role || item.company || JSON.stringify(item)) : String(item)}</li>
                                              ))}
-                                         </div>
+                                         </ul>
                                      </div>
                                  )}
 

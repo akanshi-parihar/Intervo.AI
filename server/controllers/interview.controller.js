@@ -38,18 +38,25 @@ export const analyzeResume = async (req, res) => {
       .replace(/\s+/g, " ")
       .trim();
 
-    let parsed = { role: "Software Developer", experience: "1-3 years", projects: [], skills: [] };
+    let parsed = { role: "Software Developer", experience: "1-3 years", projects: [], skills: [], internships: [] };
 
     if (resumeText) {
       try {
         const messages = [
           {
             role: "system",
-            content: `Extract structured data from resume. Return strictly JSON: { "role": "string", "experience": "string", "projects": ["project1"], "skills": ["skill1"] }`
+            content: `Extract structured data from the candidate's resume. Return ONLY valid JSON in this exact format:
+{
+  "role": "extracted primary candidate role or job title (string)",
+  "experience": "extracted total experience e.g. 1 year, 2 years (string)",
+  "projects": ["project title or description 1", "project 2"],
+  "skills": ["skill1", "skill2", "skill3"],
+  "internships": ["internship role & company 1", "internship 2"]
+}`
           },
           {
             role: "user",
-            content: resumeText.slice(0, 3000)
+            content: resumeText.slice(0, 4000)
           }
         ];
 
@@ -66,15 +73,24 @@ export const analyzeResume = async (req, res) => {
       fs.unlinkSync(filepath);
     }
 
+    const cleanItem = item => typeof item === "object" && item !== null ? (item.name || item.title || item.role || item.skill || JSON.stringify(item)) : String(item);
+
+    let finalProjects = Array.isArray(parsed.projects) ? parsed.projects.map(cleanItem).filter(Boolean) : [];
+    let finalSkills = Array.isArray(parsed.skills) ? parsed.skills.map(cleanItem).filter(Boolean) : [];
+    let finalInternships = Array.isArray(parsed.internships) ? parsed.internships.map(cleanItem).filter(Boolean) : [];
+
+    // Fallback skill extraction from text if AI missed skills
+    if (finalSkills.length === 0 && resumeText) {
+      const commonSkills = ["JavaScript", "TypeScript", "Python", "Java", "C++", "C#", "React", "Next.js", "Node.js", "Express", "HTML", "CSS", "Tailwind", "SQL", "MongoDB", "PostgreSQL", "Docker", "Git", "AWS", "Machine Learning", "AI"];
+      finalSkills = commonSkills.filter(skill => new RegExp(`\\b${skill.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, "i").test(resumeText));
+    }
+
     return res.json({
       role: typeof parsed.role === "string" ? parsed.role : "Software Developer",
       experience: typeof parsed.experience === "string" ? parsed.experience : "1-3 years",
-      projects: Array.isArray(parsed.projects)
-        ? parsed.projects.map(p => (typeof p === "object" && p !== null ? (p.name || p.title || p.project || JSON.stringify(p)) : String(p)))
-        : [],
-      skills: Array.isArray(parsed.skills)
-        ? parsed.skills.map(s => (typeof s === "object" && s !== null ? (s.name || s.skill || JSON.stringify(s)) : String(s)))
-        : [],
+      projects: finalProjects,
+      skills: finalSkills,
+      internships: finalInternships,
       resumeText: typeof resumeText === "string" ? resumeText : ""
     });
 
@@ -90,6 +106,7 @@ export const analyzeResume = async (req, res) => {
       experience: "1-3 years",
       projects: [],
       skills: [],
+      internships: [],
       resumeText: ""
     });
   }
