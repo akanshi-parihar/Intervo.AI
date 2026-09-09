@@ -12,7 +12,7 @@ import { ServerUrl } from '../App'
 import { BsArrowRight } from 'react-icons/bs'
 
 function Step2Interview({ interviewData, onFinish }) {
-  const { interviewId, questions, userName } = interviewData;
+  const { interviewId, questions = [], userName = "Candidate" } = interviewData || {};
   const [isIntroPhase, setIsIntroPhase] = useState(true);
 
   const [isMicOn, setIsMicOn] = useState(true);
@@ -38,8 +38,9 @@ function Step2Interview({ interviewData, onFinish }) {
 
   useEffect(() => {
     const loadVoices = () => {
+      if (!window.speechSynthesis) return;
       const voices = window.speechSynthesis.getVoices();
-      if (!voices.length) return;
+      if (!voices || !voices.length) return;
 
       // Try known female voices first
       const femaleVoice =
@@ -69,13 +70,15 @@ function Step2Interview({ interviewData, onFinish }) {
         return;
       }
 
-      // Fallback: first voice (assume female)
+      // Fallback: first voice
       setSelectedVoice(voices[0]);
       setVoiceGender("female");
     };
 
     loadVoices();
-    window.speechSynthesis.onvoiceschanged = loadVoices;
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
 
   }, [])
 
@@ -85,7 +88,7 @@ function Step2Interview({ interviewData, onFinish }) {
   /* ---------------- SPEAK FUNCTION ---------------- */
   const speakText = (text) => {
     return new Promise((resolve) => {
-      if (!window.speechSynthesis || !selectedVoice) {
+      if (!window.speechSynthesis || !text) {
         resolve();
         return;
       }
@@ -93,13 +96,15 @@ function Step2Interview({ interviewData, onFinish }) {
       window.speechSynthesis.cancel();
 
       // Add natural pauses after commas and periods
-      const humanText = text
+      const humanText = String(text)
         .replace(/,/g, ", ... ")
         .replace(/\./g, ". ... ");
 
       const utterance = new SpeechSynthesisUtterance(humanText);
 
-      utterance.voice = selectedVoice;
+      if (selectedVoice) {
+        utterance.voice = selectedVoice;
+      }
 
       // Human-like pacing
       utterance.rate = 0.92;     // slightly slower than normal
@@ -118,8 +123,6 @@ function Step2Interview({ interviewData, onFinish }) {
         if (videoRef.current) videoRef.current.currentTime = 0;
         setIsAIPlaying(false);
 
-
-
         if (isMicOn) {
           startMic();
         }
@@ -129,6 +132,11 @@ function Step2Interview({ interviewData, onFinish }) {
         }, 300);
       };
 
+      utterance.onerror = () => {
+        setIsAIPlaying(false);
+        setSubtitle("");
+        resolve();
+      };
 
       setSubtitle(text);
 
@@ -138,13 +146,10 @@ function Step2Interview({ interviewData, onFinish }) {
 
 
   useEffect(() => {
-    if (!selectedVoice) {
-      return;
-    }
     const runIntro = async () => {
       if (isIntroPhase) {
         await speakText(
-          `Hi ${userName}, it's great to meet you today. I hope you're feeling confident and ready.`
+          `Hi ${userName || "Candidate"}, it's great to meet you today. I hope you're feeling confident and ready.`
         );
 
         await speakText(
@@ -160,7 +165,8 @@ function Step2Interview({ interviewData, onFinish }) {
           await speakText("Alright, this one might be a bit more challenging.");
         }
 
-        await speakText(currentQuestion.question);
+        const qText = typeof currentQuestion === 'object' ? (currentQuestion.question || "") : String(currentQuestion);
+        await speakText(qText);
 
         if (isMicOn) {
           startMic();
@@ -172,7 +178,7 @@ function Step2Interview({ interviewData, onFinish }) {
     runIntro()
 
 
-  }, [selectedVoice, isIntroPhase, currentIndex])
+  }, [isIntroPhase, currentIndex])
 
 
 

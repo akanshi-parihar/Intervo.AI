@@ -58,11 +58,15 @@ export const analyzeResume = async (req, res) => {
     }
 
     res.json({
-      role: parsed.role || "Software Developer",
-      experience: parsed.experience || "1-3 years",
-      projects: Array.isArray(parsed.projects) ? parsed.projects : [],
-      skills: Array.isArray(parsed.skills) ? parsed.skills : [],
-      resumeText
+      role: typeof parsed.role === "string" ? parsed.role : "Software Developer",
+      experience: typeof parsed.experience === "string" ? parsed.experience : "1-3 years",
+      projects: Array.isArray(parsed.projects)
+        ? parsed.projects.map(p => (typeof p === "object" && p !== null ? (p.name || p.title || p.project || JSON.stringify(p)) : String(p)))
+        : [],
+      skills: Array.isArray(parsed.skills)
+        ? parsed.skills.map(s => (typeof s === "object" && s !== null ? (s.name || s.skill || JSON.stringify(s)) : String(s)))
+        : [],
+      resumeText: typeof resumeText === "string" ? resumeText : ""
     });
 
   } catch (error) {

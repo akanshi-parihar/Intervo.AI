@@ -27,60 +27,96 @@ function Step1SetUp({ onStart }) {
     const [analysisDone, setAnalysisDone] = useState(false);
     const [errorMsg, setErrorMsg] = useState("");
 
-    const handleUploadResume = async () => {
-        if (!resumeFile || analyzing) return;
-        setAnalyzing(true)
-        setErrorMsg("")
+    const handleUploadResume = async (fileToUpload = resumeFile) => {
+        const file = fileToUpload || resumeFile;
+        if (!file || analyzing) return null;
+        setAnalyzing(true);
+        setErrorMsg("");
 
-        const formdata = new FormData()
-        formdata.append("resume", resumeFile)
+        const formdata = new FormData();
+        formdata.append("resume", file);
 
         try {
-            const result = await axios.post(ServerUrl + "/api/interview/resume", formdata, { withCredentials: true })
+            const result = await axios.post(ServerUrl + "/api/interview/resume", formdata, { withCredentials: true });
 
-            console.log(result.data)
+            console.log(result.data);
 
-            setRole(result.data.role || role || "Software Developer");
-            setExperience(result.data.experience || experience || "1-3 years");
-            setProjects(result.data.projects || []);
-            setSkills(result.data.skills || []);
-            setResumeText(result.data.resumeText || "");
+            const fetchedRole = result.data.role || role || "Software Developer";
+            const fetchedExp = result.data.experience || experience || "1-3 years";
+            const fetchedProjects = Array.isArray(result.data.projects)
+                ? result.data.projects.map(p => typeof p === 'object' && p !== null ? (p.name || p.title || p.project || JSON.stringify(p)) : String(p))
+                : [];
+            const fetchedSkills = Array.isArray(result.data.skills)
+                ? result.data.skills.map(s => typeof s === 'object' && s !== null ? (s.name || s.skill || JSON.stringify(s)) : String(s))
+                : [];
+            const fetchedResumeText = result.data.resumeText || "";
+
+            setRole(fetchedRole);
+            setExperience(fetchedExp);
+            setProjects(fetchedProjects);
+            setSkills(fetchedSkills);
+            setResumeText(fetchedResumeText);
             setAnalysisDone(true);
-
             setAnalyzing(false);
+
+            return {
+                role: fetchedRole,
+                experience: fetchedExp,
+                projects: fetchedProjects,
+                skills: fetchedSkills,
+                resumeText: fetchedResumeText
+            };
 
         } catch (error) {
-            console.error(error)
-            setErrorMsg(error.response?.data?.message || "Failed to analyze resume. You can still enter details manually.")
+            console.error(error);
+            setErrorMsg(error.response?.data?.message || "Failed to analyze resume. You can still enter details manually.");
             setAnalyzing(false);
+            return null;
         }
     }
 
     const handleStart = async () => {
-        setLoading(true)
-        setErrorMsg("")
+        setLoading(true);
+        setErrorMsg("");
         try {
-           const targetRole = role.trim() || "Software Developer";
-           const targetExp = experience.trim() || "1-3 years";
-           const result = await axios.post(ServerUrl + "/api/interview/generate-questions" , {
-               role: targetRole, 
-               experience: targetExp, 
-               mode , 
-               resumeText, 
-               projects, 
-               skills 
-           } , {withCredentials:true}) 
-           console.log(result.data)
-           if(userData && result.data.creditsLeft !== undefined){
-            dispatch(setUserData({...userData , credits:result.data.creditsLeft}))
+           let currentRole = role.trim() || "Software Developer";
+           let currentExp = experience.trim() || "1-3 years";
+           let currentProjects = projects;
+           let currentSkills = skills;
+           let currentResumeText = resumeText;
+
+           // Auto analyze resume if user selected file but hasn't analyzed yet
+           if (resumeFile && !analysisDone) {
+               const analyzedData = await handleUploadResume(resumeFile);
+               if (analyzedData) {
+                   currentRole = analyzedData.role;
+                   currentExp = analyzedData.experience;
+                   currentProjects = analyzedData.projects;
+                   currentSkills = analyzedData.skills;
+                   currentResumeText = analyzedData.resumeText;
+               }
            }
-           setLoading(false)
-           onStart(result.data)
+
+           const result = await axios.post(ServerUrl + "/api/interview/generate-questions" , {
+               role: currentRole, 
+               experience: currentExp, 
+               mode , 
+               resumeText: currentResumeText, 
+               projects: currentProjects, 
+               skills: currentSkills 
+           } , {withCredentials:true});
+           
+           console.log(result.data);
+           if(userData && result.data.creditsLeft !== undefined){
+            dispatch(setUserData({...userData , credits:result.data.creditsLeft}));
+           }
+           setLoading(false);
+           onStart(result.data);
 
         } catch (error) {
-            console.error(error)
-            setErrorMsg(error.response?.data?.message || "Failed to start interview. Please check your credentials or network connection.")
-            setLoading(false)
+            console.error(error);
+            setErrorMsg(error.response?.data?.message || "Failed to start interview. Please check your credentials or network connection.");
+            setLoading(false);
         }
     }
     return (
@@ -235,30 +271,30 @@ function Step1SetUp({ onStart }) {
                                     Resume Analysis Result</h3>
 
                                 {projects.length > 0 && (
-                                    <div>
-                                        <p className='font-medium text-slate-200 mb-1'>
-                                            Projects:</p>
+                                     <div>
+                                         <p className='font-medium text-slate-200 mb-1'>
+                                             Projects:</p>
 
-                                        <ul className='list-disc list-inside text-slate-300 space-y-1'>
-                                            {projects.map((p, i) => (
-                                                <li key={i}>{p}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
+                                         <ul className='list-disc list-inside text-slate-300 space-y-1'>
+                                             {projects.map((p, i) => (
+                                                 <li key={i}>{typeof p === 'object' && p !== null ? (p.name || p.title || JSON.stringify(p)) : String(p)}</li>
+                                             ))}
+                                         </ul>
+                                     </div>
+                                 )}
 
-                                {skills.length > 0 && (
-                                    <div>
-                                        <p className='font-medium text-slate-200 mb-1'>
-                                            Skills:</p>
+                                 {skills.length > 0 && (
+                                     <div>
+                                         <p className='font-medium text-slate-200 mb-1'>
+                                             Skills:</p>
 
-                                        <div className='flex flex-wrap gap-2'>
-                                            {skills.map((s, i) => (
-                                                <span key={i} className='bg-pink-950 text-pink-300 px-3 py-1 rounded-full text-sm'>{s}</span>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                         <div className='flex flex-wrap gap-2'>
+                                             {skills.map((s, i) => (
+                                                 <span key={i} className='bg-pink-950 text-pink-300 px-3 py-1 rounded-full text-sm'>{typeof s === 'object' && s !== null ? (s.name || s.skill || JSON.stringify(s)) : String(s)}</span>
+                                             ))}
+                                         </div>
+                                     </div>
+                                 )}
 
                             </motion.div>
                         )}
