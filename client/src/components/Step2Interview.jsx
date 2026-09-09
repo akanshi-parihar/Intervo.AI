@@ -115,7 +115,7 @@ function Step2Interview({ interviewData, onFinish }) {
 
       utterance.onend = () => {
         videoRef.current?.pause();
-        videoRef.current.currentTime = 0;
+        if (videoRef.current) videoRef.current.currentTime = 0;
         setIsAIPlaying(false);
 
 
