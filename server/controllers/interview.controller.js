@@ -98,13 +98,19 @@ export const analyzeResume = async (req, res) => {
 
 export const generateQuestion = async (req, res) => {
   try {
-    let { role, experience, mode, resumeText, projects, skills } = req.body
+    let { role, experience, mode, resumeText, projects, skills } = req.body;
 
     role = (role || "Software Developer").toString().trim();
     experience = (experience || "1-3 years").toString().trim();
-    mode = (mode || "Technical").toString().trim();
+    const normalizedMode = (mode && mode.toString().toLowerCase().includes("hr")) ? "HR" : "Technical";
 
-    const user = await User.findById(req.userId)
+    if (!req.userId) {
+      return res.status(401).json({
+        message: "Unauthorized. Please log in to start an interview."
+      });
+    }
+
+    const user = await User.findById(req.userId);
 
     if (!user) {
       return res.status(404).json({
@@ -119,11 +125,11 @@ export const generateQuestion = async (req, res) => {
     }
 
     const projectText = Array.isArray(projects) && projects.length
-      ? projects.join(", ")
+      ? projects.map(p => typeof p === 'object' ? (p.name || p.title || JSON.stringify(p)) : String(p)).join(", ")
       : "None";
 
     const skillsText = Array.isArray(skills) && skills.length
-      ? skills.join(", ")
+      ? skills.map(s => typeof s === 'object' ? (s.name || s.skill || JSON.stringify(s)) : String(s)).join(", ")
       : "None";
 
     const safeResume = (resumeText || "").toString().trim() || "None";
@@ -131,7 +137,7 @@ export const generateQuestion = async (req, res) => {
     const userPrompt = `
     Role:${role}
     Experience:${experience}
-    InterviewMode:${mode}
+    InterviewMode:${normalizedMode}
     Projects:${projectText}
     Skills:${skillsText}
     Resume:${safeResume.slice(0, 1500)}
@@ -171,8 +177,8 @@ Question 5 -> hard`
     }
 
     // Fallback questions if AI generation returned insufficient questions
-    if (questionsArray.length < 5) {
-      const fallbackQuestions = mode === "HR" ? [
+    if (!Array.isArray(questionsArray) || questionsArray.length < 5) {
+      const fallbackQuestions = normalizedMode === "HR" ? [
         `Could you introduce yourself and explain why you're interested in the ${role} role?`,
         `Describe a challenging situation in your previous project and how you resolved it.`,
         `How do you handle tight deadlines or conflicting priorities when working in a team?`,
@@ -195,26 +201,26 @@ Question 5 -> hard`
       userId: user._id,
       role,
       experience,
-      mode,
+      mode: normalizedMode,
       resumeText: safeResume,
       questions: questionsArray.map((q, index) => ({
-        question: q,
-        difficulty: ["easy", "easy", "medium", "medium", "hard"][index],
-        timeLimit: [60, 60, 90, 90, 120][index],
+        question: typeof q === 'object' ? (q.question || q.text || JSON.stringify(q)) : String(q),
+        difficulty: ["easy", "easy", "medium", "medium", "hard"][index] || "medium",
+        timeLimit: [60, 60, 90, 90, 120][index] || 60,
       }))
-    })
+    });
 
-    res.json({
+    return res.json({
       interviewId: interview._id,
       creditsLeft: user.credits,
-      userName: user.name,
+      userName: user.name || "Candidate",
       questions: interview.questions
     });
   } catch (error) {
     console.error("Generate question error:", error);
-    return res.status(500).json({ message: `failed to create interview: ${error.message || error}` })
+    return res.status(500).json({ message: error.message || "Failed to create interview" });
   }
-}
+};
 
 
 export const submitAnswer = async (req, res) => {

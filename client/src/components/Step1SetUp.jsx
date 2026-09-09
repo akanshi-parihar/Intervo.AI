@@ -97,10 +97,12 @@ function Step1SetUp({ onStart }) {
                }
            }
 
+           const targetMode = mode && mode.toLowerCase().includes("hr") ? "HR" : "Technical";
+
            const result = await axios.post(ServerUrl + "/api/interview/generate-questions" , {
                role: currentRole, 
                experience: currentExp, 
-               mode , 
+               mode: targetMode, 
                resumeText: currentResumeText, 
                projects: currentProjects, 
                skills: currentSkills 
@@ -115,7 +117,7 @@ function Step1SetUp({ onStart }) {
 
         } catch (error) {
             console.error(error);
-            setErrorMsg(error.response?.data?.message || "Failed to start interview. Please check your credentials or network connection.");
+            setErrorMsg(error.response?.data?.message || error.message || "Failed to start interview. Please check your credentials or network connection.");
             setLoading(false);
         }
     }
